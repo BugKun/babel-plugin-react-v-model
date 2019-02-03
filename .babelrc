@@ -1,0 +1,24 @@
+{
+    "presets": [
+        [
+            "env",
+            {
+                "targets": {
+                    "browsers": [
+                        "last 2 versions"
+                    ]
+                }
+            }
+        ],
+        "react"
+    ],
+    "plugins": [
+        "./src/index.js",
+        "transform-decorators-legacy",
+        "add-module-exports",
+        "syntax-dynamic-import",
+        "transform-object-rest-spread",
+        "transform-export-extensions",
+        "transform-class-properties"
+    ]
+}
