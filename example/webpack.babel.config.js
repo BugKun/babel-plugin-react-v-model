@@ -27,7 +27,7 @@ module.exports = {
         filename: '[name].js',
         publicPath: '/'
     },
-    //devtool: 'source-map',
+    devtool: 'source-map',
     resolve: {
         modules: ['node_modules'],
         alias: {
@@ -65,7 +65,7 @@ module.exports = {
                     {
                         loader: 'babel-loader',
                         options: {
-                            cacheDirectory: false
+                            cacheDirectory: true
                         }
                     }
                 ]

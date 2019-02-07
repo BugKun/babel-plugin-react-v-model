@@ -49,6 +49,6 @@ app.use((req, res) => {
 app.listen(port, () => {
     console.log(`Server is now running in localhost:${port}`);
     if(isWin32) {
-       // child_process.exec(`start http://localhost:${port}`);
+       child_process.exec(`start http://localhost:${port}`);
     }
 });
