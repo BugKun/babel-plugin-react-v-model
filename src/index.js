@@ -1,3 +1,50 @@
+const generator = require('babel-generator').default;
+
+
+function InputValueHandler(expression, hasHandler) {
+    const {code} = generator(expression.node),
+        keys = code.split('.');
+
+    let codeRemix = null,
+        value = null,
+        name = undefined;
+
+    if(keys[0] === 'this') {
+        if(keys[1] === 'state') {
+            name = keys[2];
+            if(name) {
+                codeRemix = code.replace('this.state.', '');
+            }else {
+                throw expression.buildCodeFrameError('Do not use the variable "this.state" directly. Please refer to the relevant specifications of React!');
+            }
+            value = `this.state.${name}`;
+        }else if(keys[1] === 'props') {
+            if(hasHandler) {
+                name = keys[2];
+                codeRemix = code;
+                value = `this.state.${name}`;
+            }else {
+                throw expression.buildCodeFrameError(`The "handler" is missing, you can't directly change the value of "this.props", please refer to the relevant specifications of React!`);
+            }
+        }else {
+            throw expression.buildCodeFrameError(`Do not use "this.xxx" because it can't update the render. Please refer to the relevant specifications of React!`);
+        }
+    }else {
+        name = keys[0];
+        codeRemix = code;
+        value = name;
+    }
+
+    return {
+        name,
+        code,
+        value,
+        from: keys[1],
+        codeRemix
+    }
+}
+
+
 module.exports = ({ types: babelTypes, template }) => ({
     visitor: {
         JSXIdentifier(path) {
@@ -7,11 +54,11 @@ module.exports = ({ types: babelTypes, template }) => ({
                         JSXIdentifier,
                         JSXExpressionContainer,
                         Identifier,
-                        FunctionExpression,
+                        FunctionExpression
                     } = babelTypes,
-                    model = path.container.value.expression,
-                    htmlTag = path.parentPath.parent.name.name;
-
+                    parentPath = path.parentPath,
+                    model = parentPath.get('value.expression'),
+                    htmlTag = parentPath.parent.name.name;
 
                 let InputValue = 'e.target.value',
                     InputType = null,
@@ -21,11 +68,11 @@ module.exports = ({ types: babelTypes, template }) => ({
                 if(!/input|textarea|select/.test(htmlTag)) return;
 
                 if(htmlTag === 'input'){
-                    const attributes = path.parentPath.parent.attributes;
+                    const attributes = parentPath.parent.attributes;
                     let isRadio = false;
                     for(let i = 0; i < attributes.length; i++) {
-                        const $_name = attributes[i].name.name;
-                        if($_name === 'type'){
+                        const attributeName = attributes[i].name.name;
+                        if(attributeName === 'type'){
                             const type = attributes[i].value.value;
                             InputType = type;
                             if(type === 'checkbox') {
@@ -36,7 +83,7 @@ module.exports = ({ types: babelTypes, template }) => ({
                             }
                             if(!isRadio) break;
                         }
-                        if(isRadio && $_name === 'value') {
+                        if(isRadio && attributeName === 'value') {
                             const expression = attributes[i].value.expression;
                             InputRadioVal = (expression)? expression : attributes[i].value;
                             break;
@@ -44,12 +91,13 @@ module.exports = ({ types: babelTypes, template }) => ({
                     }
                 }
 
-                let name = null;
+                let name = null,
+                    onChange = undefined;
 
-                if (model.type === 'Identifier') {
+                if (model.isIdentifier()) {
                     name = path.container.value.expression.name;
 
-                    path.parentPath.parent.attributes.push(
+                    onChange = (
                         JSXAttribute(
                             JSXIdentifier("onChange"),
                             JSXExpressionContainer(
@@ -63,66 +111,75 @@ module.exports = ({ types: babelTypes, template }) => ({
                             )
                         )
                     )
-                } else if (model.type === 'ObjectExpression') {
-                    const properties = path.container.value.expression.properties;
+                } else if (model.isObjectExpression()) {
 
-                    let options = {};
-                    properties.forEach(item => {
-                        options[item.key.name] = item
-                    });
-                    name = options.bind.value.name;
+                    let options = {},
+                        replace = {},
+                        templateText = '(e) => {';      
+                        
+                        
+                    const properties = parentPath.get('value.expression.properties');
 
-                    let replace = {
-                        NAME: Identifier(name),
-                        VALUE: template(InputValue)()
-                    };
+                    for(let i = 0; i < properties.length; i++) {
+                        const itemPath = properties[i],
+                        item = itemPath.node;
 
-                    properties.forEach(item => {
-                        options[item.key.name] = item
-                    });
-                    let templateText = '(e) => {';
+                        const key_name = item.key.name,
+                            KEY_NAME = key_name.toUpperCase();
 
-                    if (options.filter) {
-                        const text = `const filter = FILTER;`;
-                        if(options.filter.value) {
-                            replace.FILTER = options.filter.value;
-                            templateText += text;
-                        }else if(options.filter.params && options.filter.body) {
-                            replace.FILTER = FunctionExpression(
-                                null,
-                                options.filter.params,
-                                options.filter.body
-                            );
-                            templateText += text;
-                        }
-                    }
-                    if (options.handler) {
-                        const text = `const setVal = SETVAL;`;
-                        if(options.handler.value) {
-                            replace.SETVAL = options.handler.value;
-                            templateText += text;
-                        }else if(options.handler.params && options.handler.body) {
-                            replace.SETVAL = FunctionExpression(
-                                null,
-                                options.handler.params,
-                                options.handler.body
-                            );
-                            templateText += text;
+                        options[key_name] = itemPath;
+                        if(key_name !== 'bind') {
+                            const text = `const ${key_name} = ${KEY_NAME};`;
+                            if(item.value) {
+                                replace[KEY_NAME] = item.value;
+                                templateText += text;
+                            }else if(item.params && item.body) {
+                                replace[KEY_NAME] = FunctionExpression(
+                                    null,
+                                    item.params,
+                                    item.body
+                                );
+                                templateText += text;
+                            }
                         }
                     }
 
-                    if (options.filter && options.handler) {
-                        templateText += `setVal({NAME: filter(VALUE)});`
-                    } else if (options.filter) {
-                        templateText += `this.setState({NAME: filter(VALUE)});`
-                    } else if (options.handler) {
-                        templateText += `setVal({NAME: VALUE});`
-                    } else {
-                        templateText += `this.setState({NAME: VALUE});`
+                    const bindValuePath = options.bind.get('value');
+
+                    name = bindValuePath.node.name;
+
+                    const isMemberExpression = bindValuePath.isMemberExpression();
+                    if(bindValuePath.isThisExpression()) {
+                        throw bindValuePath.buildCodeFrameError('Do not use "this" directly. Please refer to the relevant specifications of React!');
                     }
+
+                    const handler = (str) => (options.handler)? `handler(${str})` : `this.setState(${str})`;
+                    if(name) {
+                        replace.NAME = Identifier(name);
+                        replace.VALUE = template(InputValue)();
+
+                        const bindValue = `{NAME: ${(options.filter)? 'filter(VALUE)' : 'VALUE'}}`;
+                        templateText += handler(bindValue);
+                    }else if(isMemberExpression){
+                        const {code, name, value, from} = InputValueHandler(bindValuePath, options.handler);
+                        const filterValue = (options.filter)? `filter(${InputValue})` : InputValue;
+                        replace.NAME = Identifier(name);
+                        replace.VALUE = template(value)();
+                        let bindValue = undefined;
+                        if(from === 'props') {
+                            bindValue = filterValue
+                        }else {
+                            bindValue = `{NAME: VALUE}`;
+                            templateText += `${code} = ${filterValue};`
+                        }
+                     
+
+                        templateText += handler(bindValue);
+                    }
+                    
                     templateText += '}';
 
-                    path.parentPath.parent.attributes.push(
+                    onChange = (
                         JSXAttribute(
                             JSXIdentifier("onChange"),
                             JSXExpressionContainer(
@@ -131,16 +188,57 @@ module.exports = ({ types: babelTypes, template }) => ({
                         )
                     );
 
-                    path.container.value = JSXExpressionContainer(
-                        Identifier(name)
+                    parentPath.get('value').replaceWith(
+                        JSXExpressionContainer(
+                            bindValuePath.node
+                        )
                     );
+                }else if (model.isMemberExpression()) {
+                    const {code, name, value} = InputValueHandler(
+                        parentPath.get('value.expression')
+                    );
+
+                    onChange = (
+                        JSXAttribute(
+                            JSXIdentifier("onChange"),
+                            JSXExpressionContainer(
+                                template(`
+                                    (e) => {
+                                        ${code} = ${InputValue};
+                                        ${
+                                            (name === code)?
+                                            ''
+                                            :
+                                            `this.setState({
+                                                ${name}: ${value}
+                                            });`
+                                        }
+                                    }
+                                `)().expression
+                            )
+                        )
+                    )                   
                 }
+
+                parentPath
+                    .findParent(path => path.isJSXOpeningElement())
+                    .pushContainer(
+                        'attributes',
+                        onChange
+                    );
+
                 if(InputType === "radio") {
-                    path.container.value = JSXExpressionContainer(
-                        template(`${name} == VALUE`)({ VALUE: InputRadioVal }).expression
+                    parentPath.get('value').replaceWith(
+                        JSXExpressionContainer(
+                            template(`${name} == VALUE`)({ VALUE: InputRadioVal }).expression
+                        )
                     );
                 }
-                path.container.name.name = (InputType === "checkbox" || InputType === "radio")? 'checked' : 'value';
+                parentPath.get('name').replaceWith(
+                    JSXIdentifier(
+                        (InputType === "checkbox" || InputType === "radio")? 'checked' : 'value'
+                    )
+                )
             }
 
         },

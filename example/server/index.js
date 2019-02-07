@@ -33,8 +33,6 @@ app.use(compress());
 
 
 
-
-
 /* 开启history模式 */
 app.use((req, res) => {
     const filename = path.join(compiler.outputPath, 'index.html');
@@ -50,7 +48,7 @@ app.use((req, res) => {
 
 app.listen(port, () => {
     console.log(`Server is now running in localhost:${port}`);
-    /*if(isWin32) {
-        child_process.exec(`start http://localhost:${port}`);
-    }*/
+    if(isWin32) {
+       // child_process.exec(`start http://localhost:${port}`);
+    }
 });

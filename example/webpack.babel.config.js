@@ -27,16 +27,33 @@ module.exports = {
         filename: '[name].js',
         publicPath: '/'
     },
-    devtool: 'source-map',
+    //devtool: 'source-map',
     resolve: {
-        modules: [
-            path.resolve(__dirname, './src'),
-            'node_modules'
-        ],
+        modules: ['node_modules'],
+        alias: {
+            Assets: path.resolve(__dirname, "./src/assets"),
+            Utils: path.resolve(__dirname, "./src/utils"),
+            Services: path.resolve(__dirname, "./src/services"),
+            Components: path.resolve(__dirname, "./src/components"),
+            API: path.resolve(__dirname, "./src/api"),
+        },
         extensions: [
             '.vue',
             '.js'
         ]
+    },
+    optimization: {
+        splitChunks: {
+            cacheGroups: {
+                vendor: {
+                    test: /node_modules/,
+                    name: "vendor",
+                    chunks: "initial",
+                    priority: 10,
+                    enforce: true
+                }
+            }
+        }
     },
     module: {
         rules: [
@@ -48,7 +65,7 @@ module.exports = {
                     {
                         loader: 'babel-loader',
                         options: {
-                            cacheDirectory: true
+                            cacheDirectory: false
                         }
                     }
                 ]

@@ -1,12 +1,38 @@
-﻿<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title><%= htmlWebpackPlugin.options.title %></title>
+    <style>
+        .notSupported {
+            background: #00a1d6;
+            text-align: center;
+            padding: 10px 0;
+            color: #fff;
+        }
+    </style>
 </head>
 <body>
+    <noscript>
+        <div class="notSupported">本页面需要浏览器支持（启用）JavaScript</div>
+    </noscript>
     <div id="app"></div>
+    <script>
+        var App = document.getElementById('app');
+
+        function notification(el, text){
+            el.innerHTML = '<div class="notSupported">' + text + '，建议您升级到Edge浏览器，或使用Chrome等其他浏览器。</div>';
+        }
+
+        var errorHandler = window.errorHandler = function(e) {
+            console.log(e);
+            if (App.childNodes.length < 1)
+                notification(App, "您的浏览器内核版本太旧了，为了保护您的账号安全");
+        };
+
+        window.addEventListener("error", errorHandler);
+    </script>
 </body>
 </html>
